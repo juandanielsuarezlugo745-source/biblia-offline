@@ -16,7 +16,8 @@ jobs:
         run: pip install flet
 
       - name: Construir APK
-        run: flet build apk --main main.py --assets assets
+        run: |
+          flet build apk --main main.py --assets assets
 
       - name: Subir APK terminada
         uses: actions/upload-artifact@v4
