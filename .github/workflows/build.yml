@@ -1,0 +1,19 @@
+name: Fabricar Biblia Offline
+on: [push]
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: 'stable'
+      - name: Instalar Flet y Construir APK
+        run: |
+          pip install flet
+          flet build apk --assets assets
+      - name: Subir APK terminada
+        uses: actions/upload-artifact@v4
+        with:
+          name: MiBibliaAPK
+          path: build/apk/*.apk
