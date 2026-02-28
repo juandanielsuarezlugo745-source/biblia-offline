@@ -7,24 +7,25 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Instalar Java
+      - name: Setup Java
         uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
           java-version: '17'
 
-      - name: Instalar Python
+      - name: Setup Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.10'
 
-      - name: Preparar Android SDK
+      - name: Setup Android SDK
         uses: android-actions/setup-android@v3
 
-      - name: Instalar Flet y Construir
-        run: 
-          pip install flet
-          flet build apk --main main.py --assets assets
+      - name: Instalar Flet
+        run: pip install flet
+
+      - name: Construir APK
+        run: flet build apk --main main.py --assets assets
 
       - name: Subir APK
         uses: actions/upload-artifact@v4
