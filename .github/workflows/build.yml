@@ -1,4 +1,4 @@
-name: Fabricar Biblia
+name: Fabricar Biblia Final
 on: [push]
 
 jobs:
@@ -27,3 +27,9 @@ jobs:
       - name: Fabricar APK (Aceptando todo)
         run: |
           yes | flet build apk
+
+      - name: Entregar Archivo APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: MiBibliaInstalable
+          path: build/apk/*.apk
