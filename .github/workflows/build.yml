@@ -21,10 +21,8 @@ jobs:
       - name: Preparar Android
         uses: android-actions/setup-android@v3
 
-      - name: Instalar Flet y Dependencias
-        run: flet build apk
-          pip install flet
-          pip install --upgrade flet
+      - name: Instalar Flet
+        run: pip install flet
 
       - name: Fabricar APK
-        run: flet build apk --main main.py --assets assets
+        run: flet build apk
