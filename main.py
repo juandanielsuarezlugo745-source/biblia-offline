@@ -3,101 +3,80 @@ import json
 import os
 
 def main(page: ft.Page):
-    # Configuración de la pantalla
     page.title = "Biblia RVR1960 Offline"
     page.theme_mode = ft.ThemeMode.DARK
     page.bgcolor = "#0E1117"
     page.padding = 15
-    
-    # --- 1. CARGA DE DATOS ---
-    # Usamos un nombre corto para evitar errores en la "cocina" de GitHub
-    nombre_archivo = "Biblia.json"
-    ruta_biblia = os.path.join(os.path.dirname(__file__), "assets", nombre_archivo)
+
+    # 1. CARGA DE DATOS (Ruta simplificada para evitar errores en la cocina)
+    # IMPORTANTE: El archivo en assets debe llamarse 'Biblia.json'
+    base_path = os.path.dirname(__file__)
+    ruta_biblia = os.path.join(base_path, "assets", "Biblia.json")
     
     try:
         with open(ruta_biblia, "r", encoding="utf-8") as f:
             datos = json.load(f)
     except Exception as e:
-        page.add(ft.Text(f"Error: No se encontró '{nombre_archivo}' en la carpeta 'assets'.\nDetalle: {e}", color="red"))
+        page.add(ft.Text(f"Error: No se encontró 'Biblia.json' en assets.\n{e}", color="red"))
         return
 
-    # --- 2. ESTRUCTURA DE LA BIBLIA ---
-    libros_biblia = [libro["name"] for libro in datos["books"]]
-    
-    # Estado de la aplicación
-    state = {
-        "libro_idx": 0,
-        "capitulo_idx": 0
-    }
+    # 2. LISTAS MAESTRAS
+    AT = ["Génesis", "Éxodo", "Levítico", "Números", "Deuteronomio", "Josué", "Jueces", "Rut", "1 Samuel", "2 Samuel", "1 Reyes", "2 Reyes", "1 Crónicas", "2 Crónicas", "Esdras", "Nehemías", "Ester", "Job", "Salmos", "Proverbios", "Eclesiastés", "Cantares", "Isaías", "Jeremías", "Lamentaciones", "Ezequiel", "Daniel", "Oseas", "Joel", "Amós", "Abdías", "Jonás", "Miqueas", "Nahúm", "Habacuc", "Sofonías", "Hageo", "Zacarías", "Malaquías"]
+    NT = ["Mateo", "Marcos", "Lucas", "Juan", "Hechos", "Romanos", "1 Corintios", "2 Corintios", "Gálatas", "Efesios", "Filipenses", "Colosenses", "1 Tesalonicenses", "2 Tesalonicenses", "1 Timoteo", "2 Timoteo", "Tito", "Filemón", "Hebreos", "Santiago", "1 Pedro", "2 Pedro", "1 Juan", "2 Juan", "3 Juan", "Judas", "Apocalipsis"]
 
-    # --- 3. FUNCIONES DE NAVEGACIÓN ---
-    def cargar_texto():
-        libro = datos["books"][state["libro_idx"]]
-        capitulo = libro["chapters"][state["capitulo_idx"]]
-        
-        titulo_app.value = f"{libro['name']} {state['capitulo_idx'] + 1}"
-        
-        # Limpiar y cargar versículos
-        columna_versos.controls.clear()
-        for i, verso in enumerate(capitulo["verses"]):
-            columna_versos.controls.append(
-                ft.Text(
-                    spans=[
-                        ft.TextSpan(f"{i+1} ", style=ft.TextStyle(color="#FF9800", weight="bold")),
-                        ft.TextSpan(verso)
-                    ],
-                    size=18,
-                    selectable=True
-                )
+    state = {"libro": "Génesis", "cap": 1}
+    visor_texto = ft.Column(scroll=ft.ScrollMode.ALWAYS, expand=True, spacing=15)
+    
+    def cargar_capitulo(e=None):
+        visor_texto.controls.clear()
+        versos = [v for v in datos if v['Book'] == state["libro"] and int(v['Chapter']) == state["cap"]]
+        for v in versos:
+            visor_texto.controls.append(
+                ft.Row([
+                    ft.Text(f"{v['Verse']}", color="#FF9800", weight="bold", size=16),
+                    ft.Text(v['Text'], color="#E0E0E0", size=18, expand=True)
+                ], vertical_alignment=ft.CrossAxisAlignment.START)
             )
         page.update()
 
-    def siguiente_cap(e):
-        libro_actual = datos["books"][state["libro_idx"]]
-        if state["capitulo_idx"] < len(libro_actual["chapters"]) - 1:
-            state["capitulo_idx"] += 1
-        elif state["libro_idx"] < len(datos["books"]) - 1:
-            state["libro_idx"] += 1
-            state["capitulo_idx"] = 0
-        cargar_texto()
+    def actualizar_capitulos():
+        caps = sorted(list(set(int(v['Chapter']) for v in datos if v['Book'] == state["libro"])))
+        selector_cap.options = [ft.dropdown.Option(str(c)) for c in caps]
+        selector_cap.value = "1"
+        page.update()
 
-    def anterior_cap(e):
-        if state["capitulo_idx"] > 0:
-            state["capitulo_idx"] -= 1
-        elif state["libro_idx"] > 0:
-            state["libro_idx"] -= 1
-            libro_previo = datos["books"][state["libro_idx"]]
-            state["capitulo_idx"] = len(libro_previo["chapters"]) - 1
-        cargar_texto()
-
-    # --- 4. INTERFAZ DE USUARIO ---
-    titulo_app = ft.Text("Biblia", size=22, weight="bold", color="#FF9800")
-    columna_versos = ft.Column(scroll=ft.ScrollMode.ALWAYS, expand=True)
-
-    # Botones de navegación
-    btn_ant = ft.IconButton(ft.icons.ARROW_BACK_IOS, on_click=anterior_cap, icon_color="white")
-    btn_sig = ft.IconButton(ft.icons.ARROW_FORWARD_IOS, on_click=siguiente_cap, icon_color="white")
-
-    # Barra superior
-    barra_superior = ft.Container(
-        content=ft.Row([
-            btn_ant,
-            titulo_app,
-            btn_sig
-        ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
-        padding=10,
-        bgcolor="#1A1D23",
-        border_radius=10
+    selector_sec = ft.Dropdown(
+        label="Sec.", options=[ft.dropdown.Option("AT"), ft.dropdown.Option("NT")],
+        value="AT", width=80, color="#FF9800", border_color="#FF9800",
+        on_change=lambda e: (
+            setattr(selector_libro, "options", [ft.dropdown.Option(l) for l in (AT if selector_sec.value == "AT" else NT)]),
+            setattr(selector_libro, "value", selector_libro.options[0].key),
+            setattr(state, "libro", selector_libro.value),
+            setattr(state, "cap", 1),
+            actualizar_capitulos(),
+            cargar_capitulo()
+        )
+    )
+    
+    selector_libro = ft.Dropdown(
+        label="Libro", options=[ft.dropdown.Option(l) for l in AT],
+        value="Génesis", expand=True, color="#FF9800", border_color="#FF9800",
+        on_change=lambda e: (setattr(state, "libro", selector_libro.value), setattr(state, "cap", 1), actualizar_capitulos(), cargar_capitulo())
+    )
+    
+    selector_cap = ft.Dropdown(
+        label="Cap.", width=80, color="#FF9800", border_color="#FF9800",
+        on_change=lambda e: (setattr(state, "cap", int(selector_cap.value)), cargar_capitulo())
     )
 
-    # Añadir a la página
     page.add(
-        barra_superior,
+        ft.Row([ft.Text("MI BIBLIA", size=24, color="#FF9800", weight="bold")]),
+        ft.Row([selector_sec, selector_libro, selector_cap]),
         ft.Divider(color="#333333"),
-        columna_versos
+        visor_texto
     )
 
-    # Carga inicial
-    cargar_texto()
+    actualizar_capitulos()
+    cargar_capitulo()
 
 ft.app(target=main)
