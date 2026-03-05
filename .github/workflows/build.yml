@@ -1,5 +1,5 @@
-- name: Fabricar APK
-  run: flet build apk --main main.py
+name: Fabricar Biblia
+on: [push]
 
 jobs:
   build:
@@ -7,18 +7,18 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Setup Java
+      - name: Instalar Java
         uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
           java-version: '17'
 
-      - name: Setup Python
+      - name: Instalar Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.10'
 
-      - name: Setup Android SDK
+      - name: Preparar Android
         uses: android-actions/setup-android@v3
 
       - name: Instalar Flet
