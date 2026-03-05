@@ -1,0 +1,10 @@
+[project]
+name = "biblia_offline"
+version = "0.1.0"
+dependencies = [
+    "flet",
+]
+
+[tool.flet]
+path = "main.py"
+assets_dir = "assets"
