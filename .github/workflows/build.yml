@@ -1,5 +1,5 @@
-name: Fabricar APK
-run: flet build apk --main main.py
+- name: Fabricar APK
+  run: flet build apk --main main.py
 
 jobs:
   build:
