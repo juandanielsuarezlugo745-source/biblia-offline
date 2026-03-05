@@ -21,14 +21,10 @@ jobs:
       - name: Preparar Android
         uses: android-actions/setup-android@v3
 
-      - name: Instalar Flet
-        run: pip install flet
+      - name: Instalar Flet y Dependencias
+        run: |
+          pip install flet
+          pip install --upgrade flet
 
       - name: Fabricar APK
-        run: flet build apk
-
-      - name: Subir Resultado
-        uses: actions/upload-artifact@v4
-        with:
-          name: MiBibliaAPK
-          path: build/apk/*.apk
+        run: flet build apk --main main.py --assets assets
