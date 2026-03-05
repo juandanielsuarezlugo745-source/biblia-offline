@@ -22,7 +22,7 @@ jobs:
         uses: android-actions/setup-android@v3
 
       - name: Instalar Flet y Dependencias
-        run: |
+        run: flet build apk
           pip install flet
           pip install --upgrade flet
 
