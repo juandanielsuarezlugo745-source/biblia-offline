@@ -24,5 +24,6 @@ jobs:
       - name: Instalar Flet
         run: pip install flet
 
-      - name: Fabricar APK
-        run: flet build apk
+      - name: Fabricar APK (Aceptando todo)
+        run: |
+          yes | flet build apk
