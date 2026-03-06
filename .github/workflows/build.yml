@@ -4,7 +4,6 @@ import os
 import unicodedata
 import re
 
-# Función para que las búsquedas no fallen por tildes
 def normalizar(texto):
     if not texto: return ""
     return "".join(c for c in unicodedata.normalize('NFD', str(texto).lower())
@@ -14,225 +13,98 @@ def main(page: ft.Page):
     page.title = "Biblia RVR1960 Pro"
     page.theme_mode = ft.ThemeMode.DARK
     page.bgcolor = "#0F172A"
-    page.padding = 15
 
-    # Estado de la aplicación
-    state = {
-        "libro_actual": "", 
-        "cap_actual": 1, 
-        "total_caps": 0,
-        "fuente_size": 22 
-    }
+    state = {"libro_actual": "", "cap_actual": 1, "total_caps": 0, "fuente_size": 22}
 
-    # --- CARGA DE DATOS INTELIGENTE ---
     def cargar_y_preparar():
-        # Buscamos el archivo en todas las ubicaciones posibles donde Flet lo guarda al compilar
+        # BUSQUEDA AGRESIVA: Probamos todas las rutas posibles en Android
         posibles_rutas = [
             "Biblia.json", 
             "assets/Biblia.json", 
             "/assets/Biblia.json",
-            "../Biblia.json"
+            os.path.join(os.getcwd(), "Biblia.json")
         ]
-        
-        datos_cargados = None
         for ruta in posibles_rutas:
             if os.path.exists(ruta):
                 try:
                     with open(ruta, 'r', encoding='utf-8') as f:
-                        datos_cargados = json.load(f)
-                        # Pre-normalizamos para que las búsquedas sean instantáneas
-                        for v in datos_cargados:
-                            v["t_limpio"] = normalizar(v["Text"])
-                        return datos_cargados
-                except:
-                    continue
+                        datos = json.load(f)
+                        for v in datos: v["t_limpio"] = normalizar(v["Text"])
+                        return datos
+                except: continue
         return None
 
     datos = cargar_y_preparar()
 
-    # --- COMPONENTES DE LA INTERFAZ ---
-    caja_busqueda = ft.TextField(
-        label="Buscar palabra o frase...", 
-        border_radius=15,
-        prefix_icon=ft.icons.SEARCH
-    )
-    
+    # --- COMPONENTES ---
+    caja_busqueda = ft.TextField(label="Buscar palabra...", border_radius=15)
     lista_resultados = ft.Column(scroll=ft.ScrollMode.ALWAYS)
-    contenedor_resultados = ft.Container(
-        content=lista_resultados, 
-        expand=True, 
-        visible=False, 
-        bgcolor="#1E293B", 
-        border_radius=15, 
-        padding=10
-    )
-    
+    contenedor_resultados = ft.Container(content=lista_resultados, expand=True, visible=False, bgcolor="#1E293B", border_radius=15, padding=10)
     grid_libros = ft.Row(wrap=True, scroll=ft.ScrollMode.ALWAYS, height=200)
     grid_capitulos = ft.Row(wrap=True, spacing=8)
-    
-    columna_seleccion = ft.Column([
-        ft.Text("Libros:", weight="bold", color="#38BDF8", size=20),
-        grid_libros,
-        ft.Divider(height=20, color="white24"),
-        ft.Text("Capítulos:", weight="bold", color="#38BDF8", size=20),
-        grid_capitulos
-    ], expand=True, scroll=ft.ScrollMode.ALWAYS)
-
+    columna_seleccion = ft.Column([ft.Text("Libros:", weight="bold", color="#38BDF8"), grid_libros, ft.Divider(), grid_capitulos], expand=True, scroll=ft.ScrollMode.ALWAYS)
     area_texto = ft.Column(scroll=ft.ScrollMode.ALWAYS, expand=True)
     cabecera_lectura = ft.Column()
-    
-    # Botones de navegación inferior
-    btn_ant = ft.FilledButton("⬅ Ant.", expand=True, disabled=True)
-    btn_sig = ft.FilledButton("Sig. ➡", expand=True, disabled=True)
-    
-    nav_inferior = ft.Container(
-        content=ft.Row([btn_ant, btn_sig], spacing=10), 
-        visible=False,
-        padding=10
-    )
+    btn_ant = ft.FilledButton("⬅ Ant.", expand=True, disabled=True, on_click=lambda _: cambiar_capitulo(-1))
+    btn_sig = ft.FilledButton("Sig. ➡", expand=True, disabled=True, on_click=lambda _: cambiar_capitulo(1))
+    nav_inferior = ft.Container(content=ft.Row([btn_ant, btn_sig], spacing=10), visible=False, padding=10)
 
-    # --- FUNCIONES DE LÓGICA ---
     def cambiar_zoom(delta):
-        nueva_fuente = state["fuente_size"] + delta
-        if 14 <= nueva_fuente <= 45: 
-            state["fuente_size"] = nueva_fuente
-            mostrar_capitulo(state["libro_actual"], state["cap_actual"])
+        state["fuente_size"] = max(14, min(45, state["fuente_size"] + delta))
+        mostrar_capitulo(state["libro_actual"], state["cap_actual"])
 
     def mostrar_capitulo(libro, num_cap):
-        state["libro_actual"] = libro
-        state["cap_actual"] = int(num_cap)
-        
-        # Calcular total de capítulos del libro seleccionado
-        caps_del_libro = [int(v['Chapter']) for v in datos if v['Book'] == libro]
-        state["total_caps"] = max(caps_del_libro) if caps_del_libro else 0
-        
-        area_menu.visible = False
-        area_lectura.visible = True
-        nav_inferior.visible = True
-        
-        area_texto.controls.clear()
+        state["libro_actual"], state["cap_actual"] = libro, int(num_cap)
         versos = [v for v in datos if v['Book'] == libro and int(v['Chapter']) == state['cap_actual']]
+        state["total_caps"] = max([int(v['Chapter']) for v in datos if v['Book'] == libro])
+        area_menu.visible, area_lectura.visible, nav_inferior.visible = False, True, True
+        area_texto.controls.clear()
+        cabecera_lectura.controls = [ft.Row([ft.Text(f"{libro} {num_cap}", size=22, color="#38BDF8", weight="bold"), ft.FilledButton("Cerrar", on_click=lambda _: volver_a_menu(), bgcolor="#E11D48")], alignment="spaceBetween")]
         
-        cabecera_lectura.controls = [
-            ft.Row([
-                ft.Column([
-                    ft.Text(f"{libro} {state['cap_actual']}", size=22, color="#38BDF8", weight="bold"),
-                    ft.Row([
-                        ft.IconButton(ft.icons.REMOVE, on_click=lambda _: cambiar_zoom(-2)),
-                        ft.Text(f"Tamaño: {state['fuente_size']}"),
-                        ft.IconButton(ft.icons.ADD, on_click=lambda _: cambiar_zoom(2)),
-                    ])
-                ]),
-                ft.FilledButton("Cerrar", on_click=lambda _: volver_a_menu(), bgcolor="#E11D48")
-            ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN)
-        ]
-        
-        # Construir el texto del capítulo
-        contenido_spans = []
+        txt_spans = []
         for v in versos:
-            cita = f"{v['Verse']} "
-            contenido_spans.append(ft.TextSpan(cita, ft.TextStyle(color="#38BDF8", weight="bold", size=state["fuente_size"]-4)))
-            contenido_spans.append(ft.TextSpan(f"{v['Text']}\n\n", ft.TextStyle(size=state["fuente_size"], color="white")))
-        
-        area_texto.controls.append(ft.Text(spans=contenido_spans, selectable=True))
-        
-        # Actualizar botones de navegación
-        btn_ant.disabled = (state["cap_actual"] <= 1)
-        btn_sig.disabled = (state["cap_actual"] >= state["total_caps"])
+            txt_spans.append(ft.TextSpan(f"{v['Verse']} ", ft.TextStyle(color="#38BDF8", weight="bold", size=state["fuente_size"]-4)))
+            txt_spans.append(ft.TextSpan(f"{v['Text']}\n\n", ft.TextStyle(size=state["fuente_size"], color="white")))
+        area_texto.controls.append(ft.Text(spans=txt_spans, selectable=True))
+        btn_ant.disabled, btn_sig.disabled = (state["cap_actual"] <= 1), (state["cap_actual"] >= state["total_caps"])
         page.update()
 
     def volver_a_menu():
-        area_menu.visible = True
-        area_lectura.visible = False
-        nav_inferior.visible = False
+        area_menu.visible, area_lectura.visible, nav_inferior.visible = True, False, False
         page.update()
-
-    def cambiar_capitulo(delta):
-        nuevo_cap = state["cap_actual"] + delta
-        if 1 <= nuevo_cap <= state["total_caps"]:
-            mostrar_capitulo(state["libro_actual"], nuevo_cap)
-
-    btn_ant.on_click = lambda _: cambiar_capitulo(-1)
-    btn_sig.on_click = lambda _: cambiar_capitulo(1)
 
     def realizar_busqueda(e):
         palabra = normalizar(e.control.value).strip()
         if len(palabra) < 3:
-            contenedor_resultados.visible = False
-            columna_seleccion.visible = True
-            btn_volver_libros.visible = False
+            contenedor_resultados.visible, columna_seleccion.visible = False, True
             page.update()
             return
-        
         lista_resultados.controls.clear()
         columna_seleccion.visible = False
-        btn_volver_libros.visible = True
-        
-        conteo = 0
         patron = re.compile(rf"\b{palabra}\b")
-        for v in datos:
+        for v in datos[:5000]: # Limite de escaneo para velocidad
             if patron.search(v["t_limpio"]):
-                conteo += 1
-                lista_resultados.controls.append(
-                    ft.ListTile(
-                        title=ft.Text(f"{v['Book']} {v['Chapter']}:{v['Verse']}", color="#38BDF8"),
-                        subtitle=ft.Text(v['Text'], color="white"),
-                        on_click=lambda _, b=v['Book'], c=v['Chapter']: mostrar_capitulo(b, c)
-                    )
-                )
-                if conteo >= 50: break
-        
+                lista_resultados.controls.append(ft.ListTile(title=ft.Text(f"{v['Book']} {v['Chapter']}:{v['Verse']}", color="#38BDF8"), subtitle=ft.Text(v['Text'], color="white"), on_click=lambda _, b=v['Book'], c=v['Chapter']: mostrar_capitulo(b, c)))
         contenedor_resultados.visible = True
         page.update()
 
     caja_busqueda.on_change = realizar_busqueda
 
-    btn_volver_libros = ft.FilledButton(
-        "Ver Libros y Capítulos", 
-        visible=False, 
-        on_click=lambda _: volver_a_menu(),
-        style=ft.ButtonStyle(bgcolor="#1E293B", color="#38BDF8")
-    )
-
-    # --- MONTAJE ---
-    area_menu = ft.Column([
-        caja_busqueda, 
-        btn_volver_libros, 
-        contenedor_resultados, 
-        columna_seleccion
-    ], expand=True)
-    
-    area_lectura = ft.Column([cabecera_lectura, area_texto], visible=False, expand=True)
-
-    if datos:
-        libros_vistos = []
-        for v in datos:
-            if v['Book'] not in libros_vistos:
-                libros_vistos.append(v['Book'])
-                grid_libros.controls.append(
-                    ft.TextButton(v['Book'], on_click=lambda e, n=v['Book']: seleccionar_libro(n))
-                )
-
     def seleccionar_libro(nombre):
         grid_capitulos.controls.clear()
         caps = sorted(list(set([int(v['Chapter']) for v in datos if v['Book'] == nombre])))
-        for c in caps:
-            grid_capitulos.controls.append(
-                ft.FilledButton(str(c), on_click=lambda e, n=nombre, num=c: mostrar_capitulo(n, num))
-            )
+        for c in caps: grid_capitulos.controls.append(ft.FilledButton(str(c), on_click=lambda e, n=nombre, num=c: mostrar_capitulo(n, num)))
         page.update()
 
-    if not datos:
-        page.add(ft.Text("Error: No se encontró el archivo Biblia.json", color="red", size=20))
-    else:
-        page.add(
-            ft.Container(
-                content=ft.Column([
-                    ft.Text("BIBLIA PRO", size=28, weight="bold", color="#38BDF8"),
-                    area_menu, area_lectura, nav_inferior
-                ], expand=True),
-                expand=True
-            )
-        )
+    if datos:
+        libros = []
+        for v in datos:
+            if v['Book'] not in libros:
+                libros.append(v['Book'])
+                grid_libros.controls.append(ft.TextButton(v['Book'], on_click=lambda e, n=v['Book']: seleccionar_libro(n)))
+    
+    area_menu = ft.Column([caja_busqueda, contenedor_resultados, columna_seleccion], expand=True)
+    area_lectura = ft.Column([cabecera_lectura, area_texto], visible=False, expand=True)
+    page.add(ft.Container(content=ft.Column([ft.Text("BIBLIA PRO", size=28, weight="bold", color="#38BDF8"), area_menu, area_lectura, nav_inferior], expand=True), expand=True))
 
 ft.app(target=main)
