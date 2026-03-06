@@ -1,110 +1,36 @@
-import flet as ft
-import json
-import os
-import unicodedata
-import re
+name: Fabricar Biblia Final
+on: [push]
 
-def normalizar(texto):
-    if not texto: return ""
-    return "".join(c for c in unicodedata.normalize('NFD', str(texto).lower())
-                   if unicodedata.category(c) != 'Mn')
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
 
-def main(page: ft.Page):
-    page.title = "Biblia RVR1960 Pro"
-    page.theme_mode = ft.ThemeMode.DARK
-    page.bgcolor = "#0F172A"
+      - name: Instalar Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
 
-    state = {"libro_actual": "", "cap_actual": 1, "total_caps": 0, "fuente_size": 22}
+      - name: Instalar Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
 
-    def cargar_y_preparar():
-        # BUSQUEDA AGRESIVA: Probamos todas las rutas posibles en Android
-        posibles_rutas = [
-            "Biblia.json", 
-            "assets/Biblia.json", 
-            "/assets/Biblia.json",
-            os.path.join(os.getcwd(), "Biblia.json")
-        ]
-        for ruta in posibles_rutas:
-            if os.path.exists(ruta):
-                try:
-                    with open(ruta, 'r', encoding='utf-8') as f:
-                        datos = json.load(f)
-                        for v in datos: v["t_limpio"] = normalizar(v["Text"])
-                        return datos
-                except: continue
-        return None
+      - name: Preparar Android
+        uses: android-actions/setup-android@v3
 
-    datos = cargar_y_preparar()
+      - name: Instalar Flet
+        run: pip install flet --upgrade
 
-    # --- COMPONENTES ---
-    caja_busqueda = ft.TextField(label="Buscar palabra...", border_radius=15)
-    lista_resultados = ft.Column(scroll=ft.ScrollMode.ALWAYS)
-    contenedor_resultados = ft.Container(content=lista_resultados, expand=True, visible=False, bgcolor="#1E293B", border_radius=15, padding=10)
-    grid_libros = ft.Row(wrap=True, scroll=ft.ScrollMode.ALWAYS, height=200)
-    grid_capitulos = ft.Row(wrap=True, spacing=8)
-    columna_seleccion = ft.Column([ft.Text("Libros:", weight="bold", color="#38BDF8"), grid_libros, ft.Divider(), grid_capitulos], expand=True, scroll=ft.ScrollMode.ALWAYS)
-    area_texto = ft.Column(scroll=ft.ScrollMode.ALWAYS, expand=True)
-    cabecera_lectura = ft.Column()
-    btn_ant = ft.FilledButton("⬅ Ant.", expand=True, disabled=True, on_click=lambda _: cambiar_capitulo(-1))
-    btn_sig = ft.FilledButton("Sig. ➡", expand=True, disabled=True, on_click=lambda _: cambiar_capitulo(1))
-    nav_inferior = ft.Container(content=ft.Row([btn_ant, btn_sig], spacing=10), visible=False, padding=10)
+      - name: Fabricar APK
+        run: |
+          # Flet 0.82+ detecta Biblia.json automáticamente si está en la raíz
+          yes | flet build apk
 
-    def cambiar_zoom(delta):
-        state["fuente_size"] = max(14, min(45, state["fuente_size"] + delta))
-        mostrar_capitulo(state["libro_actual"], state["cap_actual"])
-
-    def mostrar_capitulo(libro, num_cap):
-        state["libro_actual"], state["cap_actual"] = libro, int(num_cap)
-        versos = [v for v in datos if v['Book'] == libro and int(v['Chapter']) == state['cap_actual']]
-        state["total_caps"] = max([int(v['Chapter']) for v in datos if v['Book'] == libro])
-        area_menu.visible, area_lectura.visible, nav_inferior.visible = False, True, True
-        area_texto.controls.clear()
-        cabecera_lectura.controls = [ft.Row([ft.Text(f"{libro} {num_cap}", size=22, color="#38BDF8", weight="bold"), ft.FilledButton("Cerrar", on_click=lambda _: volver_a_menu(), bgcolor="#E11D48")], alignment="spaceBetween")]
-        
-        txt_spans = []
-        for v in versos:
-            txt_spans.append(ft.TextSpan(f"{v['Verse']} ", ft.TextStyle(color="#38BDF8", weight="bold", size=state["fuente_size"]-4)))
-            txt_spans.append(ft.TextSpan(f"{v['Text']}\n\n", ft.TextStyle(size=state["fuente_size"], color="white")))
-        area_texto.controls.append(ft.Text(spans=txt_spans, selectable=True))
-        btn_ant.disabled, btn_sig.disabled = (state["cap_actual"] <= 1), (state["cap_actual"] >= state["total_caps"])
-        page.update()
-
-    def volver_a_menu():
-        area_menu.visible, area_lectura.visible, nav_inferior.visible = True, False, False
-        page.update()
-
-    def realizar_busqueda(e):
-        palabra = normalizar(e.control.value).strip()
-        if len(palabra) < 3:
-            contenedor_resultados.visible, columna_seleccion.visible = False, True
-            page.update()
-            return
-        lista_resultados.controls.clear()
-        columna_seleccion.visible = False
-        patron = re.compile(rf"\b{palabra}\b")
-        for v in datos[:5000]: # Limite de escaneo para velocidad
-            if patron.search(v["t_limpio"]):
-                lista_resultados.controls.append(ft.ListTile(title=ft.Text(f"{v['Book']} {v['Chapter']}:{v['Verse']}", color="#38BDF8"), subtitle=ft.Text(v['Text'], color="white"), on_click=lambda _, b=v['Book'], c=v['Chapter']: mostrar_capitulo(b, c)))
-        contenedor_resultados.visible = True
-        page.update()
-
-    caja_busqueda.on_change = realizar_busqueda
-
-    def seleccionar_libro(nombre):
-        grid_capitulos.controls.clear()
-        caps = sorted(list(set([int(v['Chapter']) for v in datos if v['Book'] == nombre])))
-        for c in caps: grid_capitulos.controls.append(ft.FilledButton(str(c), on_click=lambda e, n=nombre, num=c: mostrar_capitulo(n, num)))
-        page.update()
-
-    if datos:
-        libros = []
-        for v in datos:
-            if v['Book'] not in libros:
-                libros.append(v['Book'])
-                grid_libros.controls.append(ft.TextButton(v['Book'], on_click=lambda e, n=v['Book']: seleccionar_libro(n)))
-    
-    area_menu = ft.Column([caja_busqueda, contenedor_resultados, columna_seleccion], expand=True)
-    area_lectura = ft.Column([cabecera_lectura, area_texto], visible=False, expand=True)
-    page.add(ft.Container(content=ft.Column([ft.Text("BIBLIA PRO", size=28, weight="bold", color="#38BDF8"), area_menu, area_lectura, nav_inferior], expand=True), expand=True))
-
-ft.app(target=main)
+      - name: Entregar Archivo APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: MiBibliaInstalable
+          path: build/apk/*.apk
