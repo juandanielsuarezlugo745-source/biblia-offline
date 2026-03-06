@@ -7,30 +7,30 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Instalar Java
+      - name: Configurar Java
         uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
           java-version: '17'
 
-      - name: Instalar Python
+      - name: Configurar Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.10'
 
-      - name: Preparar Android
+      - name: Configurar Android SDK
         uses: android-actions/setup-android@v3
 
       - name: Instalar Flet
         run: pip install flet --upgrade
 
-      - name: Fabricar APK
+      - name: Compilar APK
         run: |
-          # Flet 0.82+ detecta Biblia.json automáticamente si está en la raíz
+          # Flet compila e incluye automáticamente la carpeta 'assets'
           yes | flet build apk
 
-      - name: Entregar Archivo APK
+      - name: Subir APK Resultante
         uses: actions/upload-artifact@v4
         with:
-          name: MiBibliaInstalable
+          name: Biblia_Instalable_Final
           path: build/apk/*.apk
