@@ -1,88 +1,107 @@
 import flet as ft
 import json
 import os
-import unicodedata
-
-def normalizar(texto):
-    if not texto: return ""
-    return "".join(c for c in unicodedata.normalize('NFD', str(texto).lower())
-                   if unicodedata.category(c) != 'Mn')
 
 def main(page: ft.Page):
     page.title = "Biblia RVR1960"
     page.theme_mode = ft.ThemeMode.DARK
     page.bgcolor = "#0F172A"
-    
-    # Lista de variables globales
-    datos = []
-    libros_nombres = []
+    page.padding = 20
 
-    # Contenedor principal donde ocurrirá la magia
-    contenido_principal = ft.Column(expand=True, alignment="center", horizontal_alignment="center")
-    
-    # 1. Función para cargar el archivo (Rápida)
-    def cargar_archivo_crudo():
-        rutas = [
-            "assets/Biblia.json",
-            os.path.join(os.getcwd(), "assets", "Biblia.json"),
-            "Biblia.json"
-        ]
+    # Variable para guardar los datos SOLO cuando se necesiten
+    datos_biblia = []
+
+    # Contenedor dinámico
+    vista_principal = ft.Column(expand=True, scroll=ft.ScrollMode.ALWAYS)
+
+    def cargar_datos_seguro():
+        nonlocal datos_biblia
+        if datos_biblia: # Si ya están cargados, no repetir
+            return True
+        
+        rutas = ["assets/Biblia.json", "Biblia.json", os.path.join(os.getcwd(), "assets", "Biblia.json")]
         for r in rutas:
             if os.path.exists(r):
                 try:
                     with open(r, 'r', encoding='utf-8') as f:
-                        return json.load(f)
+                        datos_biblia = json.load(f)
+                        return True
                 except: continue
-        return None
+        return False
 
-    # 2. Función para construir la interfaz de libros
-    def construir_interfaz_libros():
-        nonlocal libros_nombres
-        grid = ft.Row(wrap=True, scroll=ft.ScrollMode.ALWAYS, expand=True)
-        # Extraemos nombres de libros sin procesar todo el texto aún
-        libros_nombres = []
-        for v in datos:
-            if v['Book'] not in libros_nombres:
-                libros_nombres.append(v['Book'])
+    def mostrar_capitulo(libro, cap):
+        # Limpiamos y mostramos carga
+        page.clean()
+        page.add(ft.Center(ft.ProgressRing()))
         
-        for lib in libros_nombres:
+        if cargar_datos_seguro():
+            versos = [v for v in datos_biblia if v['Book'] == libro and int(v['Chapter']) == int(cap)]
+            
+            contenido = ft.Column(scroll=ft.ScrollMode.ALWAYS, expand=True)
+            spans = []
+            for v in versos:
+                spans.append(ft.TextSpan(f"{v['Verse']} ", ft.TextStyle(color="#38BDF8", weight="bold")))
+                spans.append(ft.TextSpan(f"{v['Text']}\n\n", ft.TextStyle(size=18)))
+            
+            page.clean()
+            page.add(
+                ft.Row([
+                    ft.IconButton(ft.icons.ARROW_BACK, on_click=lambda _: mostrar_inicio()),
+                    ft.Text(f"{libro} {cap}", size=22, weight="bold")
+                ]),
+                ft.Divider(),
+                ft.Text(spans=spans, selectable=True)
+            )
+        page.update()
+
+    def seleccionar_capitulos(libro):
+        page.clean()
+        # No cargamos el JSON aquí todavía, solo mostramos números del 1 al 50 (ejemplo)
+        # O mejor, cargamos rápido solo para saber cuántos capítulos tiene
+        grid_caps = ft.Row(wrap=True)
+        
+        if cargar_datos_seguro():
+            caps = sorted(list(set([int(v['Chapter']) for v in datos_biblia if v['Book'] == libro])))
+            for c in caps:
+                grid_caps.controls.append(
+                    ft.ElevatedButton(str(c), on_click=lambda e, l=libro, n=c: mostrar_capitulo(l, n))
+                )
+        
+        page.add(
+            ft.IconButton(ft.icons.ARROW_BACK, on_click=lambda _: mostrar_inicio()),
+            ft.Text(f"Capítulos de {libro}", size=20, weight="bold"),
+            grid_caps
+        )
+        page.update()
+
+    def mostrar_inicio():
+        page.clean()
+        page.add(
+            ft.Text("BIBLIA RVR1960", size=28, weight="bold", color="#38BDF8"),
+            ft.Text("Selecciona un libro:", size=16),
+            ft.Divider()
+        )
+        
+        # Lista estática de libros para que la App abra en MILISEGUNDOS
+        libros_lista = [
+            "Génesis", "Éxodo", "Levítico", "Números", "Deuteronomio",
+            "Josué", "Jueces", "Rut", "1 Samuel", "2 Samuel", "1 Reyes", "2 Reyes",
+            "Isaías", "Jeremías", "Salmos", "Proverbios", "Juan", "Mateo" # Añade los que gustes
+        ]
+        
+        grid = ft.Row(wrap=True, scroll=ft.ScrollMode.ALWAYS)
+        for lib in libros_lista:
             grid.controls.append(
                 ft.Container(
-                    content=ft.Text(lib, color="white", weight="bold"),
-                    padding=15,
-                    bgcolor="#1E293B",
-                    border_radius=10,
-                    on_click=lambda e, l=lib: print(f"Libro: {l}")
+                    content=ft.Text(lib, weight="bold"),
+                    padding=15, bgcolor="#1E293B", border_radius=10,
+                    on_click=lambda e, l=lib: seleccionar_capitulos(l)
                 )
             )
-        
-        contenido_principal.controls = [
-            ft.Text("BIBLIA RVR1960", size=30, weight="bold", color="#38BDF8"),
-            ft.Text("Selecciona un libro", size=16, color="grey"),
-            grid
-        ]
+        page.add(grid)
         page.update()
 
-    # --- INICIO DE LA APP ---
-    # Mostramos un cargando para que no se vea la pantalla azul vacía
-    contenido_principal.controls = [
-        ft.ProgressRing(width=50, height=50, stroke_width=5),
-        ft.Text("Abriendo las Escrituras...", size=18, italic=True)
-    ]
-    page.add(contenido_principal)
-
-    # Cargamos datos
-    datos_recuperados = cargar_archivo_crudo()
-    
-    if datos_recuperados:
-        datos.extend(datos_recuperados)
-        # Construimos la interfaz inmediatamente
-        construir_interfaz_libros()
-    else:
-        contenido_principal.controls = [
-            ft.Icon(ft.icons.BLOCK, color="red", size=50),
-            ft.Text("No se encontró Biblia.json en assets/", color="red")
-        ]
-        page.update()
+    # Ejecutar inicio
+    mostrar_inicio()
 
 ft.app(target=main)
