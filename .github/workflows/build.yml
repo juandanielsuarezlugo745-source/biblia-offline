@@ -26,8 +26,8 @@ jobs:
 
       - name: Compilar APK
         run: |
-          # Solo ejecutamos el build, flet usará el pyproject.toml solo
-          flet build apk
+          # El comando 'yes |' responde automáticamente a las preguntas del servidor
+          yes | flet build apk
 
       - name: Subir APK Resultante
         uses: actions/upload-artifact@v4
