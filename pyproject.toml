@@ -9,7 +9,7 @@ dependencies = [
 path = "main.py"
 assets_dir = "assets"
 
-# AGREGA ESTO PARA QUE EL APK NO NAZCA VACÍO
 [tool.flet.android]
 include_assets = ["assets/**"]
+
 
