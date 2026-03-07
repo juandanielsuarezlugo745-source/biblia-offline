@@ -27,8 +27,8 @@ def main(page: ft.Page):
     def cargar_datos():
         rutas = [
             os.path.join("assets", "Biblia.json"),
-            "assets/Biblia.json",
-            "Biblia.json",
+            "assets/Biblia",
+            "Biblia",
             os.path.expanduser("~/Documents/biblia/assets/Biblia.json"),
             os.path.join(os.getcwd(), "assets", "Biblia.json")
         ]
@@ -185,6 +185,7 @@ def main(page: ft.Page):
                 )
         page.add(ft.Container(content=ft.Column([area_menu, area_lectura, nav_inferior], expand=True), expand=True))
     else:
-        page.add(ft.Text("Error: Biblia.json no encontrado", color="red"))
+        page.add(ft.Text("Error: Biblia no encontrado", color="red"))
 
 ft.app(target=main, assets_dir="assets")
+
