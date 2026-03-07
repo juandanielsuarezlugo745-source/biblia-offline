@@ -26,7 +26,7 @@ jobs:
 
       - name: Compilar APK
         run: |
-          # Flet leerá el pyproject.toml para incluir los assets
+          # Solo ejecutamos el build, flet usará el pyproject.toml solo
           flet build apk
 
       - name: Subir APK Resultante
@@ -34,4 +34,3 @@ jobs:
         with:
           name: Biblia_Instalable_Final
           path: build/apk/*.apk
-
