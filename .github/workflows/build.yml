@@ -24,10 +24,10 @@ jobs:
       - name: Instalar Flet
         run: pip install flet --upgrade
 
-      - name: Compilar APK
+      - name: Compilar APK con Assets
         run: |
-          # Flet compila e incluye automáticamente la carpeta 'assets'
-          yes | flet build apk
+          # El comando incluye explícitamente la carpeta de la biblia
+          flet build apk --include-assets assets
 
       - name: Subir APK Resultante
         uses: actions/upload-artifact@v4
