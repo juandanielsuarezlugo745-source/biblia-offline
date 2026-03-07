@@ -24,13 +24,14 @@ jobs:
       - name: Instalar Flet
         run: pip install flet --upgrade
 
-      - name: Compilar APK con Assets
+      - name: Compilar APK
         run: |
-          # El comando incluye explícitamente la carpeta de la biblia
-          flet build apk --include-assets assets
+          # Flet leerá el pyproject.toml para incluir los assets
+          flet build apk
 
       - name: Subir APK Resultante
         uses: actions/upload-artifact@v4
         with:
           name: Biblia_Instalable_Final
           path: build/apk/*.apk
+
