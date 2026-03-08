@@ -1,10 +1,10 @@
 import flet as ft
 import json
 import os
-import unicodedata
 import sys
+import unicodedata
 
-# --- FUNCIÓN DE NORMALIZACIÓN (Para que "Génesis" se encuentre como "genesis") ---
+# --- FUNCIÓN PARA QUITAR TILDES (Para que el buscador sea inteligente) ---
 def normalizar(texto):
     if not texto: return ""
     return ''.join(
@@ -13,58 +13,48 @@ def normalizar(texto):
     )
 
 def main(page: ft.Page):
-    # --- CONFIGURACIÓN DE PÁGINA Y MARGEN SUPERIOR (Patch 50px) ---
-    page.title = "Biblia Reina Valera Offline"
+    # Configuración de la página (Margen de 50px arriba)
+    page.title = "Biblia Reina Valera"
+    page.padding = ft.padding.only(top=50, left=15, right=15, bottom=20)
     page.theme_mode = ft.ThemeMode.LIGHT
-    page.padding = ft.padding.only(top=50, left=10, right=10, bottom=10)
     
+    # Estado de la App
     state = {"datos": [], "datos_norm": []}
 
-    # --- FUNCIÓN "LLAVE MAESTRA" PARA CARGAR EL JSON ---
+    # --- CARGAR LA BIBLIA ---
     def cargar_datos():
-        # Buscamos en todas las rutas posibles donde Android guarda los assets
-        posibilidades = [
+        rutas = [
             "assets/Biblia.json",
-            "assets/biblia.json",
-            "Biblia.json",
-            "biblia.json",
-            os.path.join(getattr(sys, '_MEIPASS', ''), "assets", "Biblia.json")
+            os.path.join(getattr(sys, '_MEIPASS', ''), "assets", "Biblia.json"),
+            "Biblia.json"
         ]
-        
-        for ruta in posibilidades:
+        for ruta in rutas:
             if os.path.exists(ruta):
                 try:
                     with open(ruta, 'r', encoding='utf-8') as f:
                         d = json.load(f)
-                        # Creamos una lista normalizada para búsquedas rápidas
+                        # Pre-normalizamos para que la búsqueda sea instantánea
                         state["datos_norm"] = [normalizar(v["Text"]) for v in d]
                         return d
-                except Exception:
-                    continue
+                except: continue
         return None
 
     state["datos"] = cargar_datos()
 
-    # --- INTERFAZ DE USUARIO ---
+    # --- INTERFAZ ---
     lista_resultados = ft.ListView(expand=True, spacing=10)
-    input_busqueda = ft.TextField(
-        label="Escribe libro, capítulo o palabra...",
-        on_submit=lambda e: buscar(e.control.value),
-        prefix_icon=ft.icons.SEARCH
-    )
-
-    def buscar(query):
+    
+    def realizar_busqueda(e):
+        query = normalizar(e.control.value)
         lista_resultados.controls.clear()
-        if not state["datos"] or not query:
-            lista_resultados.controls.append(ft.Text("Escribe algo para buscar..."))
+        
+        if len(query) < 3: # No busca hasta que escribas 3 letras
             page.update()
             return
 
-        query_norm = normalizar(query)
         encontrados = 0
-        
         for i, texto_n in enumerate(state["datos_norm"]):
-            if query_norm in texto_n:
+            if query in texto_n:
                 v = state["datos"][i]
                 lista_resultados.controls.append(
                     ft.Card(
@@ -72,27 +62,30 @@ def main(page: ft.Page):
                             padding=15,
                             content=ft.Column([
                                 ft.Text(f"{v['Book']} {v['Chapter']}:{v['Verse']}", 
-                                        weight=ft.FontWeight.BOLD, color=ft.colors.BLUE_700),
+                                        weight="bold", color="blue"),
                                 ft.Text(v['Text'], size=16)
                             ])
                         )
                     )
                 )
                 encontrados += 1
-                if encontrados >= 50: break # Límite para que no se pegue el celular
-
-        if encontrados == 0:
-            lista_resultados.controls.append(ft.Text("No se encontraron resultados."))
+                if encontrados >= 50: break # Límite para velocidad
         
         page.update()
 
-    # --- VALIDACIÓN INICIAL ---
+    input_busqueda = ft.TextField(
+        label="Escribe libro o palabra (ej: Juan 3 o fe)...",
+        on_change=realizar_busqueda, # Busca mientras escribes
+        prefix_icon=ft.icons.SEARCH,
+        border_radius=10
+    )
+
+    # --- LÓGICA DE INICIO ---
     if state["datos"] is None:
-        page.add(ft.Text("⚠️ ERROR: No se encontró el archivo Biblia.json.\nVerifica que esté en la carpeta /assets", 
-                         color=ft.colors.RED, size=20))
+        page.add(ft.Text("⚠️ Archivo Biblia.json no encontrado", color="red", size=20))
     else:
         page.add(
-            ft.Text("Biblia Reina Valera 1960", size=24, weight=ft.FontWeight.BOLD),
+            ft.Text("Biblia Reina Valera 1960", size=28, weight="bold"),
             input_busqueda,
             ft.Divider(),
             lista_resultados
