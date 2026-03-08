@@ -29,7 +29,7 @@ jobs:
 
       - name: Compilar APK (Bajo Peso)
         run: |
-          # Solo para arquitectura moderna para que pese 50MB
+          # Solo compilamos para la arquitectura que usa tu celular (pesará ~50MB)
           yes | flet build apk --target-architecture android-arm64
 
       - name: Entregar APK Final
