@@ -8,10 +8,5 @@ path = "main.py"
 assets_dir = "assets"
 
 [tool.flet.android]
-# Esto obliga a meter todo lo que esté en assets
+# Esto obliga a que el JSON y el ICONO entren al APK de forma correcta
 include_assets = ["assets/*"]
-
-
-
-
-
