@@ -8,5 +8,7 @@ path = "main.py"
 assets_dir = "assets"
 
 [tool.flet.android]
-# Esto obliga a que el JSON y el ICONO entren al APK de forma correcta
+# Esto mete la Biblia y el Icono automáticamente
 include_assets = ["assets/*"]
+# Aquí le decimos la arquitectura para que pese poco (50MB)
+target_architecture = "arm64" 
