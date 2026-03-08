@@ -8,7 +8,5 @@ path = "main.py"
 assets_dir = "assets"
 
 [tool.flet.android]
-# Esto mete la Biblia y el Icono automáticamente
 include_assets = ["assets/*"]
-# Aquí le decimos la arquitectura para que pese poco (50MB)
-target_architecture = "arm64" 
+
