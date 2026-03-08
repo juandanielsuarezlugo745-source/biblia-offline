@@ -27,7 +27,14 @@ jobs:
       - name: Instalar Flet
         run: pip install flet --upgrade
 
-      - name: Compilar APK (Comando Seguro)
+      - name: Compilar APK
         run: |
-          # Usamos el comando más básico para evitar errores de argumentos
           yes | flet build apk
+
+      - name: Entregar APK Final
+        uses: actions/upload-artifact@v4
+        with:
+          name: Biblia_Lite_Instalable
+          # El truco de las comillas y asteriscos para no perder el archivo
+          path: "**/build/apk/*.apk"
+          if-no-files-found: error
