@@ -1,6 +1,6 @@
 name: Fabricar Biblia Lite
 on: 
-  workflow_dispatch: # Boton manual para evitar cocinadas locas
+  workflow_dispatch:
   push:
     branches: [ main ]
 
@@ -29,13 +29,11 @@ jobs:
 
       - name: Compilar APK (Bajo Peso)
         run: |
-          # Forzamos arm64 para que pese 50MB y metemos la Biblia
-          yes | flet build apk --target-architecture android-arm64 --include-assets assets/Biblia.json
+          # Solo para arquitectura moderna para que pese 50MB
+          yes | flet build apk --target-architecture android-arm64
 
       - name: Entregar APK Final
         uses: actions/upload-artifact@v4
         with:
           name: Biblia_Lite_Instalable
           path: build/apk/*.apk
-
-
