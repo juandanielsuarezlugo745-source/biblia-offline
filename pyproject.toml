@@ -8,7 +8,6 @@ path = "main.py"
 assets_dir = "assets"
 
 [tool.flet.android]
-# Especificamos el archivo para que no se le olvide al robot
 include_assets = ["assets/Biblia.json"]
 
 
