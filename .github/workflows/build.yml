@@ -27,13 +27,7 @@ jobs:
       - name: Instalar Flet
         run: pip install flet --upgrade
 
-      - name: Compilar APK (Bajo Peso)
+      - name: Compilar APK (Comando Seguro)
         run: |
-          # Solo compilamos para la arquitectura que usa tu celular (pesará ~50MB)
-          yes | flet build apk --target-architecture android-arm64
-
-      - name: Entregar APK Final
-        uses: actions/upload-artifact@v4
-        with:
-          name: Biblia_Lite_Instalable
-          path: build/apk/*.apk
+          # Usamos el comando más básico para evitar errores de argumentos
+          yes | flet build apk
