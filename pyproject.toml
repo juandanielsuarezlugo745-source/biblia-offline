@@ -1,16 +1,16 @@
 [project]
 name = "biblia_offline"
 version = "0.1.0"
-dependencies = [
-    "flet",
-]
+dependencies = ["flet"]
 
 [tool.flet]
 path = "main.py"
 assets_dir = "assets"
 
 [tool.flet.android]
-include_assets = ["assets/**"]
+# Esto obliga a meter todo lo que esté en assets
+include_assets = ["assets/*"]
+
 
 
 
