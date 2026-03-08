@@ -1,16 +1,15 @@
-name: Fabricar Biblia Lite
+name: Fabricar Biblia
 on: 
-  workflow_dispatch:
-  push:
-    branches: [ main ]
+  workflow_dispatch: # Esto activa el botón azul manual
 
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - name: Descargar Código
+        uses: actions/checkout@v4
 
-      - name: Configurar Java
+      - name: Configurar Java (Necesario para Android)
         uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
@@ -27,14 +26,15 @@ jobs:
       - name: Instalar Flet
         run: pip install flet --upgrade
 
-      - name: Compilar APK
+      - name: Cocinar APK
         run: |
+          # El comando 'yes' es para aceptar las licencias de Android automáticamente
           yes | flet build apk
 
       - name: Entregar APK Final
         uses: actions/upload-artifact@v4
         with:
-          name: Biblia_Lite_Instalable
-          # El truco de las comillas y asteriscos para no perder el archivo
+          name: Biblia_Instalable
+          # El truco de los asteriscos para que encuentre el archivo donde sea que Flet lo guarde
           path: "**/build/apk/*.apk"
           if-no-files-found: error
