@@ -1,5 +1,8 @@
-name: Fabricar Biblia Final
-on: [push]
+name: Fabricar Biblia Lite
+on: 
+  workflow_dispatch: # Boton manual para evitar cocinadas locas
+  push:
+    branches: [ main ]
 
 jobs:
   build:
@@ -24,17 +27,15 @@ jobs:
       - name: Instalar Flet
         run: pip install flet --upgrade
 
-      - name: Compilar APK
+      - name: Compilar APK (Bajo Peso)
         run: |
-          # El 'yes |' es para aceptar licencias automáticamente
-          yes | flet build apk
+          # Forzamos arm64 para que pese 50MB y metemos la Biblia
+          yes | flet build apk --target-architecture android-arm64 --include-assets assets/Biblia.json
 
-      - name: Entregar APK (Rastreo Total)
+      - name: Entregar APK Final
         uses: actions/upload-artifact@v4
         with:
-          name: Biblia_Instalable_Final
-          # Esta línea busca el APK en cualquier carpeta que se haya creado
-          path: build/**/*.apk
-          if-no-files-found: error
+          name: Biblia_Lite_Instalable
+          path: build/apk/*.apk
 
 
