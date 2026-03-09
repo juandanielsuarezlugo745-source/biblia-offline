@@ -4,7 +4,7 @@ import os
 import unicodedata
 import re
 import sys
-import random
+import urllib.parse
 
 def normalizar(texto):
     if not texto: return ""
@@ -12,26 +12,22 @@ def normalizar(texto):
                    if unicodedata.category(c) != 'Mn')
 
 def main(page: ft.Page):
-    page.title = "Biblia Pro 2.1"
+    # --- AJUSTES DE PANTALLA (BAJO LA HORA) ---
+    page.title = "Biblia Master 6.4"
     page.theme_mode = ft.ThemeMode.DARK
-    page.bgcolor = "#0F172A"
-    page.padding = ft.Padding(10, 45, 10, 10)
+    page.bgcolor = "#070B14"
+    # 50px de margen superior para evitar la hora y el notch
+    page.padding = ft.padding.only(top=50, left=15, right=15, bottom=15)
     
     state = {
         "datos": None,
         "datos_norm": [],
-        "libro_actual": "", 
-        "cap_actual": 1, 
-        "total_caps": 0,
-        "fuente_size": 22 
+        "libro_sel": "", 
+        "cap_sel": 1,
+        "fuente_size": 20,
+        "ultima_busqueda": "",
+        "en_busqueda": False
     }
-
-    # --- LISTA DE PROMESAS ESPECÍFICAS ---
-    promesas_lista = [
-        ("Josué", 1, 9), ("Salmos", 23, 1), ("Isaías", 41, 10), 
-        ("Filipenses", 4, 13), ("Jeremías", 29, 11), ("Mateo", 11, 28),
-        ("Salmos", 37, 4), ("Proverbios", 3, 5), ("Juan", 14, 27)
-    ]
 
     def cargar_datos():
         rutas = [os.path.join(getattr(sys, '_MEIPASS', ''), "assets", "Biblia.json"), "assets/Biblia.json", "Biblia.json"]
@@ -46,162 +42,210 @@ def main(page: ft.Page):
         return None
 
     state["datos"] = cargar_datos()
+    main_container = ft.Column(expand=True, spacing=10)
 
-    # --- COMPONENTES ---
-    progreso = ft.ProgressBar(visible=False, color="#38BDF8")
-    lista_resultados = ft.ListView(expand=True, spacing=10)
-    contenedor_resultados = ft.Container(content=lista_resultados, expand=True, visible=False, bgcolor="#1E293B", border_radius=15, padding=10)
-    
-    grid_libros = ft.GridView(expand=True, runs_count=5, max_extent=120, child_aspect_ratio=2.0, spacing=5)
-    grid_capitulos = ft.GridView(expand=True, max_extent=60, child_aspect_ratio=1.0, spacing=5)
-
-    columna_seleccion = ft.Column([
-        ft.Text("LIBROS:", weight="bold", color="#38BDF8"),
-        ft.Container(grid_libros, height=220, border=ft.Border.all(1, "#334155"), border_radius=10, padding=5),
-        ft.Column([
-            ft.Text("CAPÍTULOS:", weight="bold", color="#38BDF8"),
-            ft.Container(grid_capitulos, expand=True, border=ft.Border.all(1, "#334155"), border_radius=10, padding=5)
-        ], expand=True, visible=False)
-    ], expand=True)
-
-    # --- FUNCIÓN PROMESA (SOLO VERSÍCULO) ---
-    def mostrar_promesa(e):
-        p = random.choice(promesas_lista)
-        v = next((v for v in state["datos"] if v['Book'] == p[0] and int(v['Chapter']) == p[1] and int(v['Verse']) == p[2]), None)
-        if v:
-            # Creamos una ventana emergente (Dialog)
-            dlg = ft.AlertDialog(
-                title=ft.Text(f"{v['Book']} {v['Chapter']}:{v['Verse']}", color="#38BDF8"),
-                content=ft.Text(v['Text'], size=20, italic=True),
-                actions=[
-                    ft.TextButton("Ir al capítulo", on_click=lambda _: [mostrar_capitulo(v['Book'], v['Chapter']), cerrar_dialogo(dlg)]),
-                    ft.TextButton("Cerrar", on_click=lambda _: cerrar_dialogo(dlg))
-                ],
-            )
-            page.dialog = dlg
-            dlg.open = True
-            page.update()
-
-    def cerrar_dialogo(dlg):
-        dlg.open = False
+    # --- FUNCIÓN COMPARTIR (PROBADA PARA APK) ---
+    def compartir_versiculo(texto_v, num_v):
+        cita = f"{state['libro_sel']} {state['cap_sel']}:{num_v}"
+        # Usamos negritas (*) para que el mensaje resalte en WhatsApp
+        mensaje_completo = f"*{cita}*\n\"{texto_v}\"\n\n_Enviado desde Biblia Digital_"
+        mensaje_encoded = urllib.parse.quote(mensaje_completo)
+        
+        # Esta URL es la "Llave Maestra". En el APK, Android abrirá WhatsApp directamente.
+        url_final = f"https://wa.me/?text={mensaje_encoded}"
+        
+        # Abrimos la URL (En modo espejo puede abrir navegador, en APK abre la App)
+        page.launch_url(url_final)
+        
+        snack = ft.SnackBar(ft.Text(f"Compartiendo {cita}..."), bgcolor="#38BDF8")
+        page.overlay.append(snack)
+        snack.open = True
         page.update()
 
-    # --- BUSCADOR SIN LÍMITES (OPTIMIZADO) ---
-    def realizar_busqueda(valor):
-        p = normalizar(valor).strip()
-        if len(p) < 2: return 
-        
-        progreso.visible = True
-        page.update()
-        
-        lista_resultados.controls.clear()
-        lista_resultados.controls.append(ft.ElevatedButton("⬅ VOLVER A LIBROS", on_click=lambda _: volver_a_menu(), bgcolor="#E11D48", color="white"))
-        
-        patron = re.compile(rf"\b{re.escape(p)}\b")
-        encontrados = []
-        for i, texto_norm in enumerate(state["datos_norm"]):
-            if patron.search(texto_norm):
-                v = state["datos"][i]
-                encontrados.append(ft.ListTile(
-                    title=ft.Text(f"{v['Book']} {v['Chapter']}:{v['Verse']}", color="#38BDF8", weight="bold"),
-                    subtitle=ft.Text(v['Text'], color="white", max_lines=2),
-                    on_click=lambda _, b=v['Book'], c=v['Chapter']: mostrar_capitulo(b, c)
-                ))
-        
-        # Quitamos el límite para que muestre TODO
-        lista_resultados.controls.extend(encontrados)
-        if len(encontrados) == 0:
-            lista_resultados.controls.append(ft.Text("No se encontró la palabra.", color="white"))
-        
-        progreso.visible = False
-        columna_seleccion.visible = False
-        contenedor_resultados.visible = True
+    def mostrar_vista(vista_controles):
+        main_container.controls.clear()
+        main_container.controls.extend(vista_controles)
         page.update()
 
-    # --- NAVEGACIÓN Y LECTURA ---
-    def volver_a_menu():
-        area_menu.visible, area_lectura.visible, nav_inferior.visible = True, False, False
-        contenedor_resultados.visible, columna_seleccion.visible = False, True
-        page.update()
+    # --- 1. VISTA DE LIBROS ---
+    def vista_inicio():
+        state["en_busqueda"] = False
+        grid = ft.GridView(expand=True, max_extent=150, spacing=10, run_spacing=10)
+        if state["datos"]:
+            libros = []
+            for v in state["datos"]:
+                if v['Book'] not in libros:
+                    libros.append(v['Book'])
+                    grid.controls.append(
+                        ft.Container(
+                            content=ft.Text(v['Book'], weight="bold", size=13, text_align="center"),
+                            bgcolor="#111827", border_radius=10, 
+                            alignment=ft.Alignment(0, 0),
+                            padding=10, on_click=lambda e, n=v['Book']: seleccionar_libro(n)
+                        )
+                    )
+        
+        caja_busqueda = ft.TextField(label="Buscar palabra o frase...", expand=True, border_color="#38BDF8")
+        btn_buscar = ft.TextButton("BUSCAR", on_click=lambda _: ejecutar_busqueda(caja_busqueda.value))
 
-    def compartir_texto(e):
-        texto_completo = ""
-        for control in area_texto.controls:
-            if isinstance(control, ft.Text): texto_completo += control.value if control.value else ""
-        page.set_clipboard(f"📖 {state['libro_actual']} {state['cap_actual']}\n\n{texto_completo}")
-        page.show_snack_bar(ft.SnackBar(ft.Text("¡Copiado!")))
+        mostrar_vista([
+            ft.Text("BIBLIA DIGITAL", size=28, weight="bold", color="#38BDF8"),
+            ft.Row([caja_busqueda, btn_buscar], spacing=5),
+            ft.Divider(height=10, color="transparent"),
+            grid
+        ])
 
-    def mostrar_capitulo(libro, num_cap):
-        state["libro_actual"], state["cap_actual"] = libro, int(num_cap)
-        caps_list = [int(v['Chapter']) for v in state["datos"] if v['Book'] == libro]
-        state["total_caps"] = max(caps_list) if caps_list else 0
-        area_menu.visible, area_lectura.visible, nav_inferior.visible = False, True, True
-        area_texto.controls.clear()
-        
-        versos = [v for v in state["datos"] if v['Book'] == libro and int(v['Chapter']) == state['cap_actual']]
-        
-        cabecera_lectura.controls = [
-            ft.Row([
-                ft.Text(f"{libro} {state['cap_actual']}", size=20, color="#38BDF8", weight="bold"),
-                ft.Row([
-                    ft.ElevatedButton("A-", on_click=lambda _: cambiar_zoom(-2), width=50),
-                    ft.ElevatedButton("A+", on_click=lambda _: cambiar_zoom(2), width=50),
-                    ft.FilledButton("ATRÁS", on_click=lambda _: volver_a_menu(), bgcolor="#E11D48")
-                ], spacing=5)
-            ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN)
-        ]
-        
-        spans = []
-        for v in versos:
-            spans.append(ft.TextSpan(f"{v['Verse']} ", ft.TextStyle(color="#38BDF8", weight="bold", size=max(12, state["fuente_size"]-6))))
-            spans.append(ft.TextSpan(f"{v['Text']}\n\n", ft.TextStyle(size=state["fuente_size"], color="white")))
-        
-        area_texto.controls.append(ft.Text(spans=spans, selectable=True))
-        area_texto.controls.append(ft.ElevatedButton("COMPARTIR CAPÍTULO 📤", on_click=compartir_texto, bgcolor="#334155", color="white"))
-        btn_ant.disabled, btn_sig.disabled = (state["cap_actual"] <= 1), (state["cap_actual"] >= state["total_caps"])
-        page.update()
-
+    # --- 2. VISTA DE CAPÍTULOS ---
     def seleccionar_libro(nombre):
-        columna_seleccion.controls[2].visible = True
-        grid_capitulos.controls.clear()
+        state["libro_sel"] = nombre
         caps = sorted(list(set([int(v['Chapter']) for v in state["datos"] if v['Book'] == nombre])))
+        grid_caps = ft.GridView(expand=True, max_extent=70, spacing=10)
         for c in caps:
-            grid_capitulos.controls.append(ft.Container(
-                content=ft.Text(str(c), weight="bold", color="white"),
-                alignment=ft.Alignment(0, 0), bgcolor="#334155", border_radius=5,
-                on_click=lambda e, n=nombre, num=c: mostrar_capitulo(n, num)
-            ))
-        page.update()
+            grid_caps.controls.append(
+                ft.Container(
+                    content=ft.Text(str(c), weight="bold", size=16), bgcolor="#1E293B",
+                    alignment=ft.Alignment(0, 0), border_radius=10,
+                    on_click=lambda e, n=c: seleccionar_capitulo(n)
+                )
+            )
+        mostrar_vista([
+            ft.Row([ft.TextButton("< LIBROS", on_click=lambda _: vista_inicio()), 
+                    ft.Container(ft.Text(nombre, size=22, weight="bold"), expand=True)]),
+            grid_caps
+        ])
+
+    # --- 3. VISTA DE VERSÍCULOS ---
+    def seleccionar_capitulo(num):
+        state["cap_sel"] = num
+        v_nums = sorted(list(set([int(v['Verse']) for v in state["datos"] 
+                                 if v['Book'] == state['libro_sel'] and int(v['Chapter']) == num])))
+        
+        grid_versos = ft.GridView(expand=True, max_extent=60, spacing=8)
+        for v in v_nums:
+            grid_versos.controls.append(
+                ft.Container(
+                    content=ft.Text(str(v), weight="bold"),
+                    bgcolor="#0F172A", border_radius=8,
+                    border=ft.Border.all(1, "#38BDF8"),
+                    alignment=ft.Alignment(0, 0),
+                    on_click=lambda e, vn=v: abrir_lectura(state["libro_sel"], state["cap_sel"], vn)
+                )
+            )
+        mostrar_vista([
+            ft.Row([ft.TextButton("< CAP", on_click=lambda _: seleccionar_libro(state["libro_sel"])), 
+                    ft.Container(ft.Text(f"{state['libro_sel']} {num}", size=22, weight="bold"), expand=True)]),
+            grid_versos
+        ])
+
+    # --- 4. PANTALLA DE LECTURA CON BOTÓN INICIO ---
+    def abrir_lectura(libro, cap, verso_foco):
+        state["libro_sel"] = libro
+        state["cap_sel"] = int(cap)
+        v_data = [v for v in state["datos"] if v['Book'] == libro and int(v['Chapter']) == state['cap_sel']]
+        
+        lista_v = ft.ListView(expand=True, spacing=12, padding=15)
+        for v in v_data:
+            es_foco = int(v['Verse']) == verso_foco
+            lista_v.controls.append(
+                ft.Container(
+                    content=ft.Text(spans=[
+                        ft.TextSpan(f"{v['Verse']} ", ft.TextStyle(color="#38BDF8" if not es_foco else "#FACC15", weight="bold")),
+                        ft.TextSpan(v['Text'], ft.TextStyle(size=state["fuente_size"], color="white" if not es_foco else "#FACC15"))
+                    ]),
+                    on_click=lambda e, txt=v['Text'], num=v['Verse']: compartir_versiculo(txt, num)
+                )
+            )
+        
+        def volver_atras_inteligente(_):
+            if state["en_busqueda"]:
+                ejecutar_busqueda(state["ultima_busqueda"])
+            else:
+                seleccionar_capitulo(cap)
+
+        mostrar_vista([
+            # FILA SUPERIOR: VOLVER - TÍTULO - ZOOM
+            ft.Row([
+                ft.TextButton("< ATRÁS", on_click=volver_atras_inteligente),
+                ft.Container(ft.Text(f"{libro} {cap}", size=18, weight="bold"), expand=True),
+                ft.TextButton("[+]", on_click=lambda _: cambiar_zoom(2)),
+                ft.TextButton("[-]", on_click=lambda _: cambiar_zoom(-2)),
+            ]),
+            # BOTONES DE ACCIÓN RÁPIDA
+            ft.Row([
+                ft.ElevatedButton("🏠 INICIO", on_click=lambda _: vista_inicio(), bgcolor="#1E293B", color="#38BDF8"),
+                ft.Row([
+                    ft.TextButton("< ANT.", on_click=lambda _: navegar_cap(-1)),
+                    ft.TextButton("SIG. >", on_click=lambda _: navegar_cap(1)),
+                ])
+            ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
+            
+            ft.Text("Toca un versículo para compartir", size=11, color="white60", text_align="center"),
+            ft.Container(lista_v, expand=True, bgcolor="#111827", border_radius=15, border=ft.Border.all(1, "#1E293B"))
+        ])
+
+    # --- LÓGICA DE BÚSQUEDA ---
+    def ejecutar_busqueda(texto):
+        if not texto or len(texto.strip()) < 1: return
+        state["ultima_busqueda"] = texto
+        state["en_busqueda"] = True
+        p_norm = normalizar(texto).strip()
+        patron = re.compile(rf"\b{re.escape(p_norm)}\b")
+        
+        hallazgos = {}
+        for i, txt_norm in enumerate(state["datos_norm"]):
+            if patron.search(txt_norm):
+                v = state["datos"][i]
+                libro = v["Book"]
+                if libro not in hallazgos: hallazgos[libro] = []
+                hallazgos[libro].append(v)
+        
+        lista_res = ft.ListView(expand=True, spacing=10)
+        if not hallazgos:
+            lista_res.controls.append(ft.Text("Sin resultados."))
+        else:
+            for libro, versos in hallazgos.items():
+                lista_res.controls.append(
+                    ft.Container(
+                        content=ft.Row([ft.Text("📖"), ft.Text(f"{libro} ({len(versos)})", size=16)], spacing=10),
+                        padding=15, bgcolor="#1E293B", border_radius=10,
+                        on_click=lambda e, l=libro, v_lista=versos: vista_resultados_detallados(l, v_lista)
+                    )
+                )
+        mostrar_vista([
+            ft.Row([ft.TextButton("< INICIO", on_click=lambda _: vista_inicio()), ft.Text(f"Busca: '{texto}'", size=18)]),
+            lista_res
+        ])
+
+    def vista_resultados_detallados(libro, lista_v):
+        lista_detallada = ft.ListView(expand=True, spacing=15, padding=10)
+        for v in lista_v:
+            lista_detallada.controls.append(
+                ft.Container(
+                    content=ft.Column([
+                        ft.Text(f"{libro} {v['Chapter']}:{v['Verse']}", weight="bold", color="#38BDF8"),
+                        ft.Text(v['Text'], size=state["fuente_size"], color="white"),
+                    ], spacing=5),
+                    padding=15, bgcolor="#111827", border_radius=10, border=ft.Border.all(1, "#1E293B"),
+                    on_click=lambda e, txt=v['Text'], num=v['Verse']: compartir_versiculo(txt, num)
+                )
+            )
+        mostrar_vista([
+            ft.Row([ft.TextButton("< RESULTADOS", on_click=lambda _: ejecutar_busqueda(state["ultima_busqueda"])), 
+                    ft.Text(f"{libro}", size=18)]),
+            lista_detallada
+        ])
+
+    def navegar_cap(delta):
+        nueva_c = state["cap_sel"] + delta
+        existe = any(int(v['Chapter']) == nueva_c and v['Book'] == state['libro_sel'] for v in state["datos"])
+        if existe:
+            abrir_lectura(state["libro_sel"], nueva_c, 1)
 
     def cambiar_zoom(delta):
         state["fuente_size"] += delta
-        mostrar_capitulo(state["libro_actual"], state["cap_actual"])
+        abrir_lectura(state["libro_sel"], state["cap_sel"], 1)
 
-    def cambiar_capitulo(delta):
-        nuevo = state["cap_actual"] + delta
-        if 1 <= nuevo <= state["total_caps"]: mostrar_capitulo(state["libro_actual"], nuevo)
+    page.add(main_container)
+    vista_inicio()
 
-    # --- UI PRINCIPAL ---
-    caja_busqueda = ft.TextField(label="Buscar palabra exacta", border_radius=15, expand=True, on_submit=lambda e: realizar_busqueda(e.control.value))
-    btn_buscar = ft.ElevatedButton("BUSCAR 🔍", on_click=lambda _: realizar_busqueda(caja_busqueda.value), bgcolor="#38BDF8", color="white")
-    btn_promesas = ft.ElevatedButton("✨ PROMESA DEL DÍA", on_click=mostrar_promesa, bgcolor="#7C3AED", color="white", width=400)
-
-    area_menu = ft.Column([ft.Row([caja_busqueda, btn_buscar]), btn_promesas, progreso, contenedor_resultados, columna_seleccion], expand=True)
-    area_texto = ft.ListView(expand=True, spacing=10, padding=15)
-    cabecera_lectura = ft.Column()
-    area_lectura = ft.Column([cabecera_lectura, area_texto], visible=False, expand=True)
-    btn_ant = ft.FilledButton("⬅ Anterior", expand=True, on_click=lambda _: cambiar_capitulo(-1))
-    btn_sig = ft.FilledButton("Siguiente ➡", expand=True, on_click=lambda _: cambiar_capitulo(1))
-    nav_inferior = ft.Container(content=ft.Row([btn_ant, btn_sig], spacing=10), visible=False)
-
-    if state["datos"]:
-        for v in state["datos"]:
-            if v['Book'] not in [c.content.value for c in grid_libros.controls]:
-                grid_libros.controls.append(ft.Container(
-                    content=ft.Text(v['Book'], size=11, text_align="center", color="white"),
-                    bgcolor="#1E293B", border_radius=8, alignment=ft.Alignment(0, 0),
-                    on_click=lambda e, n=v['Book']: seleccionar_libro(n)
-                ))
-        page.add(ft.Container(content=ft.Column([area_menu, area_lectura, nav_inferior], expand=True), expand=True))
-    
-ft.app(target=main)
+ft.run(main)
