@@ -4,7 +4,6 @@ import os
 import unicodedata
 import re
 import sys
-import urllib.parse
 
 def normalizar(texto):
     if not texto: return ""
@@ -12,11 +11,11 @@ def normalizar(texto):
                    if unicodedata.category(c) != 'Mn')
 
 def main(page: ft.Page):
-    # --- AJUSTES DE PANTALLA (BAJO LA HORA) ---
-    page.title = "Biblia Master 6.4"
+    # --- CONFIGURACIÓN DE PANTALLA ---
+    page.title = "Biblia Master 6.8"
     page.theme_mode = ft.ThemeMode.DARK
     page.bgcolor = "#070B14"
-    # 50px de margen superior para evitar la hora y el notch
+    # Margen para la hora del teléfono
     page.padding = ft.padding.only(top=50, left=15, right=15, bottom=15)
     
     state = {
@@ -44,24 +43,6 @@ def main(page: ft.Page):
     state["datos"] = cargar_datos()
     main_container = ft.Column(expand=True, spacing=10)
 
-    # --- FUNCIÓN COMPARTIR (PROBADA PARA APK) ---
-    def compartir_versiculo(texto_v, num_v):
-        cita = f"{state['libro_sel']} {state['cap_sel']}:{num_v}"
-        # Usamos negritas (*) para que el mensaje resalte en WhatsApp
-        mensaje_completo = f"*{cita}*\n\"{texto_v}\"\n\n_Enviado desde Biblia Digital_"
-        mensaje_encoded = urllib.parse.quote(mensaje_completo)
-        
-        # Esta URL es la "Llave Maestra". En el APK, Android abrirá WhatsApp directamente.
-        url_final = f"https://wa.me/?text={mensaje_encoded}"
-        
-        # Abrimos la URL (En modo espejo puede abrir navegador, en APK abre la App)
-        page.launch_url(url_final)
-        
-        snack = ft.SnackBar(ft.Text(f"Compartiendo {cita}..."), bgcolor="#38BDF8")
-        page.overlay.append(snack)
-        snack.open = True
-        page.update()
-
     def mostrar_vista(vista_controles):
         main_container.controls.clear()
         main_container.controls.extend(vista_controles)
@@ -85,7 +66,7 @@ def main(page: ft.Page):
                         )
                     )
         
-        caja_busqueda = ft.TextField(label="Buscar palabra o frase...", expand=True, border_color="#38BDF8")
+        caja_busqueda = ft.TextField(label="Buscar...", expand=True, border_color="#38BDF8")
         btn_buscar = ft.TextButton("BUSCAR", on_click=lambda _: ejecutar_busqueda(caja_busqueda.value))
 
         mostrar_vista([
@@ -137,7 +118,7 @@ def main(page: ft.Page):
             grid_versos
         ])
 
-    # --- 4. PANTALLA DE LECTURA CON BOTÓN INICIO ---
+    # --- 4. LECTURA (LÓGICA DE TU IMAGEN: SELECCIÓN NATIVA) ---
     def abrir_lectura(libro, cap, verso_foco):
         state["libro_sel"] = libro
         state["cap_sel"] = int(cap)
@@ -146,13 +127,20 @@ def main(page: ft.Page):
         lista_v = ft.ListView(expand=True, spacing=12, padding=15)
         for v in v_data:
             es_foco = int(v['Verse']) == verso_foco
+            
+            # --- AQUÍ ESTÁ LA LÓGICA DE LA IMAGEN ---
+            # Ponemos el texto como 'selectable=True' para que Android 
+            # muestre el menú de Copy/Share al dejar presionado.
             lista_v.controls.append(
                 ft.Container(
-                    content=ft.Text(spans=[
-                        ft.TextSpan(f"{v['Verse']} ", ft.TextStyle(color="#38BDF8" if not es_foco else "#FACC15", weight="bold")),
-                        ft.TextSpan(v['Text'], ft.TextStyle(size=state["fuente_size"], color="white" if not es_foco else "#FACC15"))
-                    ]),
-                    on_click=lambda e, txt=v['Text'], num=v['Verse']: compartir_versiculo(txt, num)
+                    content=ft.Text(
+                        spans=[
+                            ft.TextSpan(f"{v['Verse']} ", ft.TextStyle(color="#38BDF8" if not es_foco else "#FACC15", weight="bold")),
+                            ft.TextSpan(v['Text'], ft.TextStyle(size=state["fuente_size"], color="white" if not es_foco else "#FACC15"))
+                        ],
+                        selectable=True # <--- ACTIVA EL MENÚ DE TU IMAGEN
+                    ),
+                    padding=5
                 )
             )
         
@@ -163,14 +151,12 @@ def main(page: ft.Page):
                 seleccionar_capitulo(cap)
 
         mostrar_vista([
-            # FILA SUPERIOR: VOLVER - TÍTULO - ZOOM
             ft.Row([
                 ft.TextButton("< ATRÁS", on_click=volver_atras_inteligente),
                 ft.Container(ft.Text(f"{libro} {cap}", size=18, weight="bold"), expand=True),
                 ft.TextButton("[+]", on_click=lambda _: cambiar_zoom(2)),
                 ft.TextButton("[-]", on_click=lambda _: cambiar_zoom(-2)),
             ]),
-            # BOTONES DE ACCIÓN RÁPIDA
             ft.Row([
                 ft.ElevatedButton("🏠 INICIO", on_click=lambda _: vista_inicio(), bgcolor="#1E293B", color="#38BDF8"),
                 ft.Row([
@@ -179,11 +165,11 @@ def main(page: ft.Page):
                 ])
             ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
             
-            ft.Text("Toca un versículo para compartir", size=11, color="white60", text_align="center"),
+            ft.Text("Presiona el texto para copiar o compartir", size=11, color="white60", text_align="center"),
             ft.Container(lista_v, expand=True, bgcolor="#111827", border_radius=15, border=ft.Border.all(1, "#1E293B"))
         ])
 
-    # --- LÓGICA DE BÚSQUEDA ---
+    # --- BÚSQUEDA ---
     def ejecutar_busqueda(texto):
         if not texto or len(texto.strip()) < 1: return
         state["ultima_busqueda"] = texto
@@ -223,10 +209,9 @@ def main(page: ft.Page):
                 ft.Container(
                     content=ft.Column([
                         ft.Text(f"{libro} {v['Chapter']}:{v['Verse']}", weight="bold", color="#38BDF8"),
-                        ft.Text(v['Text'], size=state["fuente_size"], color="white"),
+                        ft.Text(v['Text'], size=state["fuente_size"], color="white", selectable=True), # Lógica nativa también aquí
                     ], spacing=5),
-                    padding=15, bgcolor="#111827", border_radius=10, border=ft.Border.all(1, "#1E293B"),
-                    on_click=lambda e, txt=v['Text'], num=v['Verse']: compartir_versiculo(txt, num)
+                    padding=15, bgcolor="#111827", border_radius=10, border=ft.Border.all(1, "#1E293B")
                 )
             )
         mostrar_vista([
